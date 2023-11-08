@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: volumes-web-app
-        image: megaputer/volumes-web-app
+        image: docker.io/megaputer/volumes-web-app
         ports:
         - containerPort: 5000
         env:

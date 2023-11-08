@@ -12,8 +12,8 @@ commonLabels:
   app: tensorboards-web-app
   kustomize.component: tensorboards-web-app
 images:
-- name: megaputer/tensorboards-web-app
-  newName: megaputer/tensorboards-web-app
+- name: docker.io/megaputer/tensorboards-web-app
+  newName: docker.io/megaputer/tensorboards-web-app
   newTag: v1.5.0
 # We need the name to be unique without the suffix because the original name is what
 # gets used with patches

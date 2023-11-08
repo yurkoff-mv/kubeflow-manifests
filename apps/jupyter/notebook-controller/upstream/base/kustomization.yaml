@@ -3,6 +3,6 @@ kind: Kustomization
 resources:
 - ../default
 images:
-- name: megaputer/notebook-controller
-  newName: megaputer/notebook-controller
+- name: docker.io/megaputer/notebook-controller
+  newName: docker.io/megaputer/notebook-controller
   newTag: v1.5.0

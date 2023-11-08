@@ -14,8 +14,8 @@ commonLabels:
   app.kubernetes.io/component: poddefaults
   app.kubernetes.io/name: poddefaults
 images:
-- name: megaputer/admission-webhook
-  newName: megaputer/admission-webhook
+- name: docker.io/megaputer/admission-webhook
+  newName: docker.io/megaputer/admission-webhook
   newTag: v1.5.0
 namespace: kubeflow
 generatorOptions:

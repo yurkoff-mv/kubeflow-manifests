@@ -34,6 +34,6 @@ patches:
     kind: "ClusterRoleBinding"
     group: "rbac.authorization.k8s.io"
 images:
-- name: megaputer/tensorboard-controller
-  newName: megaputer/tensorboard-controller
+- name: docker.io/megaputer/tensorboard-controller
+  newName: docker.io/megaputer/tensorboard-controller
   newTag: v1.5.0

@@ -10,8 +10,8 @@ patchesStrategicMerge:
 - patches/manager.yaml
 
 images:
-- name: megaputer/profile-controller
-  newName: megaputer/profile-controller
+- name: docker.io/megaputer/profile-controller
+  newName: docker.io/megaputer/profile-controller
   newTag: v1.5.0
 
 configMapGenerator:

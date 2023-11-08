@@ -16,8 +16,8 @@ commonLabels:
   app.kubernetes.io/component: centraldashboard
   app.kubernetes.io/name: centraldashboard
 images:
-- name: megaputer/central-dashboard
-  newName: megaputer/central-dashboard
+- name: docker.io/megaputer/central-dashboard
+  newName: docker.io/megaputer/central-dashboard
   newTag: v1.5.0
 configMapGenerator:
 - envs:

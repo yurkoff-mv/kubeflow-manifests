@@ -6,5 +6,5 @@ resources:
   - kubeflow-training-roles.yaml
 images:
   - name: kubeflow/training-operator
-    newName: megaputer/training-operator
+    newName: docker.io/megaputer/training-operator
     newTag: "174e8813666951ded505daf334a37f60fd50c18d"

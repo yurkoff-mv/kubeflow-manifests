@@ -28,7 +28,7 @@ spec:
         envFrom:
           - configMapRef:
               name: config
-        image: megaputer/profile-controller
+        image: docker.io/megaputer/profile-controller
         imagePullPolicy: IfNotPresent
         name: manager
         livenessProbe:

@@ -27,6 +27,6 @@ vars:
     apiVersion: v1
 
 images:
-- name: megaputer/access-management
-  newName: megaputer/access-management
+- name: docker.io/megaputer/access-management
+  newName: docker.io/megaputer/access-management
   newTag: v1.5.0

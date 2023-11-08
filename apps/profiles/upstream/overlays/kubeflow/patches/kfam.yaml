@@ -20,7 +20,7 @@ spec:
         envFrom:
           - configMapRef:
               name: config
-        image: megaputer/access-management
+        image: docker.io/megaputer/access-management
         imagePullPolicy: IfNotPresent
         name: kfam
         livenessProbe:

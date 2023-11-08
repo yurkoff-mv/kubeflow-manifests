@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: centraldashboard
-        image: megaputer/central-dashboard
+        image: docker.io/megaputer/central-dashboard
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

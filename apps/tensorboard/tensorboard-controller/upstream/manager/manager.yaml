@@ -27,7 +27,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
-        image: megaputer/tensorboard-controller
+        image: docker.io/megaputer/tensorboard-controller
         name: manager
         resources:
           limits:
