@@ -1,7 +1,45 @@
 # Установка KubeFlow с помощью Kustomize
 
+<!-- toc -->
+- [1. Установка необходимого окружения](#1.-установка-необходимого-окружения)
+- [1. Установка необходимого окружения](1.-установка-необходимого-окружения)
+  * [1.1. Установка драйверов NVIDIA](1.1.-установка-драйверов-nvidia)
+  * [1.2. Установка CUDA](1.2.-установка-cuda)
+  * [1.3. Установка CUDNN](1.3.-установка-cudnn)
+  * [1.4. Проверка правильности установки](1.4.-проверка-правильности-установки)
+  * [1.5. Установка nvitop (опционально)](1.5.-установка-nvitop-(опционально))
+- [2. Конфигурация кластера](2.-конфигурация-кластера)
+  * [2.1. Установка MicroKBs](2.1.-установка-microkbs)
+  * [2.1. Добавление NFS-хранилища](2.1.-добавление-nfs-хранилища)
+- [3. Установка KubeFlow](3.-установка-kubeflow)
+  * [3.1. Установка Kustomize](3.1.-установка-kustomize)
+  * [3.2. Установка KubeFlow](3.2.-установка-kubeflow)
+  * [3.2. Создание  Jupyter Notebook (опционально)](3.2.-создание-jupyter-notebook(опционально))
+  * [3.3. Работа с lnference Service](3.3.-работа-с-lnference-service)
+- [4. Обход Dex при обращении к lnference 5ervice](4.-обход-оео-при-обращении-к-lnference-5ervice)
+- [5. Изменение имени хоста в lnference Service](5.-изменение-имени-хоста-к-lnference-service)
+- [6. Изменение логина и пароля в KubeFlow](6.-изменение-логина-и-пароля-к-kubeflow)
+- [7. Изменение ConfigMap (опционально)](7.-изменение-configmap-(опционально))
+- [8. Получение токена и сертификата для доступа к кластеру](8.-получение-токена-и-сертификата-для-доступа-к-кластеру)
+- [9. Grafana (опционально)](9.-grafana-(опционально))
+  * [9.1. Развернуть Grafana и Prometheus](9.1.-развернуть-grafana-и-prometheus)
+  * [9.2. Развернуть Exporter для сбора метрик GPU](9.2.-развернуть-exporter-для-сбора-метрик-gpu)
+  * [9.3. Обеспечить доступ к Grafana извне](9.3.-обеспечить-доступ-к-grafana-извне)
+  * [9.4. Настройка Grafana Dashboard](9.4.-настройка-grafana-dashboard)
+- [10. Добавление и удаление узлов в кластере](10.-добавление-и-удаление-узлов-к-кластере)
+  * [10.1. Добавление узла](10.1.-добавление-узла)
+  * [10.2. Удаление узла](10.2.-удаление-узла)
+- [11. Очистка ПК](11.-очистка-пк)
+  * [11.1. Сохранение файлов из Default Storage](11.1.-сохранение-файлов-из-default-storage)
+  * [11.2. Удаление текущей версии Kubernetes](11.2.-удаление-текущей-версии-kubernetes)
+  * [11.3. Удаление CUDA](11.3.-удаление-cuda)
+  * [11.4. Удаление драйверов NVIDIA](11.4.-удаление-драйверов-nvidia)
+  * [11.5. Удаление ненужных репозиториев](11.5.-удаление-ненужных-репозиториев)
+  * [11.6. Очистка системы от удалённых пакетов:](11.6.-очистка-системы-от-удалённых-пакетов:)
+  * [11.7. Удалить Docker (опционально)](11.7.-удалить-docker-(опционально))
+- [Приложение А. Управление контейнирами в crt](приложение-а.-управление-контейнирами-в-crt)
+<!-- tocstop -->
 
-[[_TOC_]]
 **Внимание**: На момент написания этого документа (06.09.2023) устройства **GPU** успешно обнаруживаются **Kubernetes** только на операционной системе (ОС) **Ubuntu 20.04**. На других версиях ОС **Kubernetes** может не обнаружить **GPU**! В настоящий момент поддерживаются только **GPU** **NVIDIA**.
 
 
@@ -129,7 +167,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 **CUDNN** представляет собой библиотеку примитивов для глубоких нейронных сетей с графическим ускорением. **CUDNN** обеспечивает оптимизированную реализацию многих распространенных операций глубокого обучения. Эти оптимизированные реализации могут значительно ускорить обучение и запуск глубоких нейронных сетей на графических процессорах **NVIDIA**.
 
-Скачать требуемую версию **CUDNN** можно по ссылке https://developer.nvidia.com/rdp/cudnn-archive. 
+Скачать требуемую версию **CUDNN** можно по ссылке https://developer.nvidia.com/rdp/cudnn-archive.
 
 **Внимание**: Версия **CUDNN** должна быть совместима с установленной версией **CUDA**!
 
@@ -152,8 +190,8 @@ tar -xvf cudnn-linux-x86_64-8.9.1.23_cuda12-archive.tar.xz
 Скопировать файлы библиотеки в каталоги CUDA:
 
 ```bash
-sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include 
-sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 
+sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include
+sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64
 ```
 
 Сделать добавленные файлы доступными для чтения:
@@ -171,7 +209,7 @@ nvidia-smi
 Вывод должен содержать информацию о видеокарте, драйвере и версии **CUDA**. В нашем примере это `535.86` и `12.2` соответственно:
 
 ```bash
-Wed Sep  6 15:48:52 2023       
+Wed Sep  6 15:48:52 2023      
 +---------------------------------------------------------------------------------------+
 | NVIDIA-SMI 535.86.10              Driver Version: 535.86.10    CUDA Version: 12.2     |
 |-----------------------------------------+----------------------+----------------------+
@@ -183,7 +221,7 @@ Wed Sep  6 15:48:52 2023
 |  0%   36C    P8              11W / 450W |     31MiB / 24564MiB |      0%      Default |
 |                                         |                      |                  N/A |
 +-----------------------------------------+----------------------+----------------------+
-                                                                                         
+                                                                                        
 +---------------------------------------------------------------------------------------+
 | Processes:                                                                            |
 |  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
@@ -251,7 +289,7 @@ nvitop
 
 Версия **MicroK8S 1.20** использует **NVIDIA Plugin** вместо **GPU operator**, поддерживает GPU, совместим с **KubeFlow**
 
-**Внимание:** **MicroK8S 1.20** конфликтует с nvidia-docker2 (https://github.com/ubuntu/microk8s/issues/1844#issuecomment-750760506)!
+**Внимание:** **MicroK8S 1.20** конфликтует с **nvidia-docker2** (https://github.com/ubuntu/microk8s/issues/1844#issuecomment-750760506)!
 
 Установить **MicroK8S** версии **1.20/stable** можно с помощью команды:
 
@@ -476,7 +514,7 @@ microk8s kubectl patch storageclass nfs-client -p '{"metadata": {"annotations":{
 wget https://github.com/kubernetes-sigs/kustomize/releases/download/v3.2.0/kustomize_3.2.0_linux_amd64
 ```
 
-Установка заключается в помещении исполняемого файла в папку `/usr/local/bin` и предоставлении разрешения для его исполнения: 
+Установка заключается в помещении исполняемого файла в папку `/usr/local/bin` и предоставлении разрешения для его исполнения:
 
 ```bash
 chmod +x kustomize_3.2.0_linux_amd64
@@ -485,7 +523,7 @@ sudo mv kustomize_3.2.0_linux_amd64 /usr/local/bin/kustomize
 
 ### 3.2. Установка KubeFlow
 
-На текущий момент самая последняя версия **Kubeflow 1.6.1**, но она на данный момент не работает с **Kubernetes 1.20** (https://github.com/kubeflow/manifests/issues/2305). Поэтому рекомендуется развернуть версию **Kubeflow 1.5**.
+На текущий момент самая последняя версия **Kubeflow 1.8**, но на данный момент имеется проблема с авторизацией и получения сессии для последующего дотупа к **Inference Services** (https://github.com/kubeflow/manifests/issues/2542). Поэтому рекомендуется развернуть версию **Kubeflow 1.5**.
 
 Клонировать репозиторий **KubeFlow 1.5**:
 
@@ -493,7 +531,7 @@ sudo mv kustomize_3.2.0_linux_amd64 /usr/local/bin/kustomize
 git clone -b v1.5 https://github.com/yurkov-mv/kubeflow-manifests.git
 ```
 
-Для авторизации в **Kubeflow** используется **Dex**. По умолчанию используются  адрес электронной почты `user@megaputer.com` и пароль `11111111`. Их можно изменить после развёртывания **Kubeflow**, но удобнее это сделать заранее. 
+Для авторизации в **Kubeflow** используется **Dex**. По умолчанию используются  адрес электронной почты `user@megaputer.com` и пароль `11111111`. Их можно изменить после развёртывания **Kubeflow**, но удобнее это сделать заранее.
 
 Чтобы установить новые адрес электронной почти и пароль нужно отредактировать файл `~/manifests/common/dex/base/config-map.yaml`. В целях безопасности пароль в файле хранится в хэшированном виде. Чтобы получить хэш для своего пароля можно воспользоваться функцией `bcrypt` из библиотеки **Python** **Passlib** :
 
@@ -525,7 +563,7 @@ user=user@megaputer.com
 profile-name=kubeflow-megaputer
 ```
 
-Для того, чтобы указать внешний порт для обращения к кластеру нужно изменить файл `~/manifests/common/istio-1-11/istio-install/base/patches/service.yaml`   следующим образом: 
+Для того, чтобы указать внешний порт для обращения к кластеру нужно изменить файл `~/manifests/common/istio-1-11/istio-install/base/patches/service.yaml`   следующим образом:
 
 ```yaml
 apiVersion: v1
@@ -551,7 +589,7 @@ spec:
 while ! kustomize build ~/kubeflow-manifests/example | microk8s kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
 ```
 
-Убедиться в правильности установки можно с помощью наблюдения за **POD**'ами. 
+Убедиться в правильности установки можно с помощью наблюдения за **POD**'ами.
 
 ```bash
 watch -c microk8s kubectl get pods -n kubeflow
@@ -596,7 +634,7 @@ workflow-controller-6bf87db995-nl9cn                         2/2     Running   2
 После того, как все будет успешно установлено нужно узнать порт по котрому можно получить доступ к центральной панели. Это можно сделать обратившись к ресурсу `istio-ingressgateway` в пространстве имён `istio-system`:
 
 ```bash
-microk8s kubectl get service istio-ingressgateway -n istio-system 
+microk8s kubectl get service istio-ingressgateway -n istio-system
 ```
 
 Вывод должен содержать информацию о соответствии внутренних и внешних портов (port-forwarding):
@@ -656,7 +694,7 @@ microk8s kubectl edit configmap istio -n istio-system
     - name: "dex-auth-provider"
       envoyExtAuthzHttp:
         service: "authservice.istio-system.svc.cluster.local"
-        port: "8080" 
+        port: "8080"
         includeHeadersInCheck: ["authorization", "cookie", "x-auth-token"]
         headersToUpstreamOnAllow: ["kubeflow-userid"]
 ```
@@ -683,7 +721,7 @@ data:
     - name: "dex-auth-provider"
       envoyExtAuthzHttp:
         service: "authservice.istio-system.svc.cluster.local"
-        port: "8080" 
+        port: "8080"
         includeHeadersInCheck: ["authorization", "cookie", "x-auth-token"]
         headersToUpstreamOnAllow: ["kubeflow-userid"]
   meshNetworks: 'networks: {}'
@@ -1104,7 +1142,7 @@ Regex: /.uuid="(.*)"./
 microk8s enable gpu
 ```
 
-На главном узле кластера выполнить команду 
+На главном узле кластера выполнить команду
 
 ```bash
 microk8s add-node
