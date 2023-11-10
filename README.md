@@ -1122,7 +1122,7 @@ https://grafana.com/grafana/dashboards/14574-nvidia-gpu-metrics/
 
 Отредактировать переменную **gpu**:
 
-```json
+```bash
 Query: nvidia_smi_index
 Regex: /.uuid="(.*)"./
 ```
