@@ -1,425 +1,1279 @@
-# Kubeflow Manifests
+# Установка KubeFlow с помощью Kustomize
 
-## Table of Contents
 
-<!-- toc -->
+[[_TOC_]]
+**Внимание**: На момент написания этого документа (06.09.2023) устройства **GPU** успешно обнаруживаются **Kubernetes** только на операционной системе (ОС) **Ubuntu 20.04**. На других версиях ОС **Kubernetes** может не обнаружить **GPU**! В настоящий момент поддерживаются только **GPU** **NVIDIA**.
 
-- [Overview](#overview)
-- [Kubeflow components versions](#kubeflow-components-versions)
-- [Installation](#installation)
-  * [Prerequisites](#prerequisites)
-  * [Install with a single command](#install-with-a-single-command)
-  * [Install individual components](#install-individual-components)
-  * [Connect to your Kubeflow Cluster](#connect-to-your-kubeflow-cluster)
-  * [Change default user password](#change-default-user-password)
-- [Frequently Asked Questions](#frequently-asked-questions)
 
-<!-- tocstop -->
+## 1. Установка необходимого окружения
 
-## Overview
 
-This repo is owned by the [Manifests Working Group](https://github.com/kubeflow/community/blob/master/wg-manifests/charter.md).
-If you are a contributor authoring or editing the packages please see [Best Practices](./docs/KustomizeBestPractices.md).
+### 1.1. Установка драйверов NVIDIA
 
-The Kubeflow Manifests repository is organized under three (3) main directories, which include manifests for installing:
+Добавление PPA репозитория:
 
-| Directory | Purpose |
-| - | - |
-| `apps` | Kubeflow's official components, as maintained by the respective Kubeflow WGs |
-| `common` | Common services, as maintained by the Manifests WG |
-| `contrib` | 3rd party contributed applications, which are maintained externally and are not part of a Kubeflow WG |
-
-The `distributions` directory contains manifests for specific, opinionated distributions of Kubeflow, and will be phased out during the 1.4 release, [since going forward distributions will maintain their manifests on their respective external repositories](https://github.com/kubeflow/community/blob/master/proposals/kubeflow-distributions.md).
-
-The `docs`, `hack`, and `tests` directories will also be gradually phased out.
-
-Starting from Kubeflow 1.3, all components should be deployable using `kustomize` only. Any automation tooling for deployment on top of the manifests should be maintained externally by distribution owners.
-
-## Kubeflow components versions
-
-This repo periodically syncs all official Kubeflow components from their respective upstream repos. The following matrix shows the git version that we include for each component:
-
-| Component | Local Manifests Path | Upstream Revision |
-| - | - | - |
-| Training Operator | apps/training-operator/upstream | [v1.4.0](https://github.com/kubeflow/tf-operator/tree/v1.4.0/manifests) |
-| Notebook Controller | apps/jupyter/notebook-controller/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/notebook-controller/config) |
-| Tensorboard Controller | apps/tensorboard/tensorboard-controller/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/tensorboard-controller/config) |
-| Central Dashboard | apps/centraldashboard/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/centraldashboard/manifests) |
-| Profiles + KFAM | apps/profiles/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/profile-controller/config) |
-| PodDefaults Webhook | apps/admission-webhook/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/admission-webhook/manifests) |
-| Jupyter Web App | apps/jupyter/jupyter-web-app/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/crud-web-apps/jupyter/manifests) |
-| Tensorboards Web App | apps/tensorboard/tensorboards-web-app/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/crud-web-apps/tensorboards/manifests) |
-| Volumes Web App | apps/volumes-web-app/upstream | [v1.5.0](https://github.com/kubeflow/kubeflow/tree/v1.5.0/components/crud-web-apps/volumes/manifests) |
-| Katib | apps/katib/upstream | [v0.13.0](https://github.com/kubeflow/katib/tree/v0.13.0/manifests/v1beta1) |
-| KFServing | apps/kfserving/upstream | [v0.6.1](https://github.com/kubeflow/kfserving/releases/tag/v0.6.1) |
-| KServe | contrib/kserve/upstream | [v0.7.0](https://github.com/kserve/kserve/tree/v0.7.0) |
-| Kubeflow Pipelines | apps/pipeline/upstream | [1.8.2](https://github.com/kubeflow/pipelines/tree/1.8.2/manifests/kustomize) |
-| Kubeflow Tekton Pipelines | apps/kfp-tekton/upstream | [v1.1.1](https://github.com/kubeflow/kfp-tekton/tree/v1.1.1/manifests/kustomize) |
-
-The following is also a matrix with versions from common components that are
-used from the different projects of Kubeflow:
-
-| Component | Local Manifests Path | Upstream Revision |
-| - | - | - |
-| Istio | common/istio-1-11 | [1.11.0](https://github.com/istio/istio/releases/tag/1.11.0) |
-| Knative | common/knative | [0.22.1](https://github.com/knative/serving/releases/tag/v0.22.1) |
-
-## Installation
-
-Starting from Kubeflow 1.3, the Manifests WG provides two options for installing Kubeflow official components and common services with kustomize. The aim is to help end users install easily and to help distribution owners build their opinionated distributions from a tested starting point:
-
-1. Single-command installation of all components under `apps` and `common`
-2. Multi-command, individual components installation for `apps` and `common`
-
-Option 1 targets ease of deployment for end users. \
-Option 2 targets customization and ability to pick and choose individual components.
-
-The `example` directory contains an example kustomization for the single command to be able to run.
-
-:warning: In both options, we use a default email (`user@example.com`) and password (`12341234`). For any production Kubeflow deployment, you should change the default password by following [the relevant section](#change-default-user-password).
-
-### Prerequisites
-
-- `Kubernetes` (up to `1.21`) with a default [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/)
-    - :warning: Kubeflow 1.5.0 is not compatible with version 1.22 and onwards.
-        You can track the remaining work for K8s 1.22 support in
-        [kubeflow/kubeflow#6353](https://github.com/kubeflow/kubeflow/issues/6353)
-- `kustomize` (version `3.2.0`) ([download link](https://github.com/kubernetes-sigs/kustomize/releases/tag/v3.2.0))
-    - :warning: Kubeflow 1.5.0 is not compatible with the latest versions of of kustomize 4.x. This is due to changes in the order resources are sorted and printed. Please see [kubernetes-sigs/kustomize#3794](https://github.com/kubernetes-sigs/kustomize/issues/3794) and [kubeflow/manifests#1797](https://github.com/kubeflow/manifests/issues/1797). We know this is not ideal and are working with the upstream kustomize team to add support for the latest versions of kustomize as soon as we can.
-- `kubectl`
-
----
-**NOTE**
-
-`kubectl apply` commands may fail on the first try. This is inherent in how Kubernetes and `kubectl` work (e.g., CR must be created after CRD becomes ready). The solution is to simply re-run the command until it succeeds. For the single-line command, we have included a bash one-liner to retry the command.
-
----
-
-### Install with a single command
-
-You can install all Kubeflow official components (residing under `apps`) and all common services (residing under `common`) using the following command:
-
-```sh
-while ! kustomize build example | kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
+```bash
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt update
+sudo apt upgrade
 ```
 
-Once, everything is installed successfully, you can access the Kubeflow Central Dashboard [by logging in to your cluster](#connect-to-your-kubeflow-cluster).
+Проверка доступных драйверов:
 
-Congratulations! You can now start experimenting and running your end-to-end ML workflows with Kubeflow.
-
-### Install individual components
-
-In this section, we will install each Kubeflow official component (under `apps`) and each common service (under `common`) separately, using just `kubectl` and `kustomize`.
-
-If all the following commands are executed, the result is the same as in the above section of the single command installation. The purpose of this section is to:
-
-- Provide a description of each component and insight on how it gets installed.
-- Enable the user or distribution owner to pick and choose only the components they need.
-
-#### cert-manager
-
-cert-manager is used by many Kubeflow components to provide certificates for
-admission webhooks.
-
-Install cert-manager:
-
-```sh
-kustomize build common/cert-manager/cert-manager/base | kubectl apply -f -
-kustomize build common/cert-manager/kubeflow-issuer/base | kubectl apply -f -
+```bash
+ubuntu-drivers devices
 ```
 
-#### Istio
+Вывод команды должен быть похож на следующий:
 
-Istio is used by many Kubeflow components to secure their traffic, enforce
-network authorization and implement routing policies.
-
-Install Istio:
-
-```sh
-kustomize build common/istio-1-11/istio-crds/base | kubectl apply -f -
-kustomize build common/istio-1-11/istio-namespace/base | kubectl apply -f -
-kustomize build common/istio-1-11/istio-install/base | kubectl apply -f -
+```bash
+modalias : pci:v000010DEd00002204sv00001569sd00002204bc03sc00i00
+vendor   : NVIDIA Corporation
+driver   : nvidia-driver-535-open - distro non-free
+driver   : nvidia-driver-525-open - distro non-free
+driver   : nvidia-driver-535 - distro non-free
+driver   : nvidia-driver-525-server - distro non-free
+driver   : nvidia-driver-470 - distro non-free
+driver   : nvidia-driver-535-server-open - distro non-free recommended
+driver   : nvidia-driver-470-server - distro non-free
+driver   : nvidia-driver-535-server - distro non-free
+driver   : nvidia-driver-525 - distro non-free
+driver   : xserver-xorg-video-nouveau - distro free builtin
 ```
 
-#### Dex
+Лучше устанавливать последнюю версию драйвера, в данном случае это `nvidia-driver-535 - distro non-free`.
 
-Dex is an OpenID Connect Identity (OIDC) with multiple authentication backends. In this default installation, it includes a static user with email `user@example.com`. By default, the user's password is `12341234`. For any production Kubeflow deployment, you should change the default password by following [the relevant section](#change-default-user-password).
+**Примечание:** Приписка `-open`  обозначает, что драйвер с открытым исходным кодом. Отсутствие данной приписки обозначает обычную проприетарную версию драйвера. **NVIDIA** рекомендуют использовать проприетарный драйвер для достижения лучшей производительности.
 
-Install Dex:
+Установка требуемого драйвера
 
-```sh
-kustomize build common/dex/overlays/istio | kubectl apply -f -
+```bash
+sudo apt install nvidia-driver-535
 ```
 
-#### OIDC AuthService
+**Внимание**: Для видеокарты **Nvidia Tesla K80** последняя поддерживаемая версия драйвера **470.82**!
 
-The OIDC AuthService extends your Istio Ingress-Gateway capabilities, to be able to function as an OIDC client:
+### 1.2. Установка CUDA
 
-```sh
-kustomize build common/oidc-authservice/base | kubectl apply -f -
+Скачать требуемую версию CUDA с официального сайта Nvidia https://developer.nvidia.com/cuda-toolkit-archive.
+
+Далее необходимо выбрать версию ОС и тип инсталлятора. В качестве инсталлятора рекомендуется выбирать локальный (**runfile (local)**).
+
+![cuda](./docs/images/cuda.png)
+
+**Внимание**: Необходимо убедиться, что предлагаемая версия **CUDA** имеет ту же версию драйвера, что и установленная в п. 1.1. В данном случае это версия **535**. Она указана в пути к файлу (`cuda_12.2.1_535.86.10_linux.run`).
+
+**Примечание**: Для видеокарты **Nvidia Tesla K80** последняя поддерживаемая версия **CUDA 11.4.4**!
+
+Чтобы скачать файл нужно выполнить предлагаемую команду:
+
+```bash
+wget https://developer.download.nvidia.com/compute/cuda/12.2.1/local_installers/cuda_12.2.1_535.86.10_linux.run
 ```
 
-#### Knative
+После скачивания файла нужно запустить установку, выполнив команду:
 
-Knative is used by the KFServing official Kubeflow component.
-
-Install Knative Serving:
-
-```sh
-kustomize build common/knative/knative-serving/overlays/gateways | kubectl apply -f -
-kustomize build common/istio-1-11/cluster-local-gateway/base | kubectl apply -f -
+```bash
+sudo sh cuda_12.1.1_530.30.02_linux.run
 ```
 
-Optionally, you can install Knative Eventing which can be used for inference request logging:
+При установке убрать галочку установки драйвера, т.к. он уже установлен на предыдущем шаге.
 
-```sh
-kustomize build common/knative/knative-eventing/base | kubectl apply -f -
+После установки **CUDA** нужно сделать её видимой для ОС, добавив пути конфигурационные файлы каталога `/etc`.
+
+Указать путь к исполняемым файлам **CUDA** в файле `/etc/environment`:
+
+```bash
+sudo nano /etc/environment
 ```
 
-#### Kubeflow Namespace
+добавив путь `/usr/local/cuda/bin`:
 
-Create the namespace where the Kubeflow components will live in. This namespace
-is named `kubeflow`.
-
-Install kubeflow namespace:
-
-```sh
-kustomize build common/kubeflow-namespace/base | kubectl apply -f -
+```bash
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/usr/local/cuda/bin"
 ```
 
-#### Kubeflow Roles
+Переменные окружения, созданные в `/etc/environment` доступны для всей системы, для каждого пользователя и даже при удаленном подключении.
 
-Create the Kubeflow ClusterRoles, `kubeflow-view`, `kubeflow-edit` and
-`kubeflow-admin`. Kubeflow components aggregate permissions to these
-ClusterRoles.
+Далее нужно создать файл конфигурации `cuda-xx-x.conf` в каталоге `/etc/ld.so.conf.d`, где `xx-x` - установленная версия **CUDA**, в нашем примере - `12-2`:
 
-Install kubeflow roles:
-
-```sh
-kustomize build common/kubeflow-roles/base | kubectl apply -f -
+```bash
+sudo nano /etc/ld.so.conf.d/cuda-12-2.conf
 ```
 
-#### Kubeflow Istio Resources
+и добавить в него пути:
 
-Create the Istio resources needed by Kubeflow. This kustomization currently
-creates an Istio Gateway named `kubeflow-gateway`, in namespace `kubeflow`.
-If you want to install with your own Istio, then you need this kustomization as
-well.
-
-Install istio resources:
-
-```sh
-kustomize build common/istio-1-11/kubeflow-istio-resources/base | kubectl apply -f -
+```bash
+/usr/local/cuda-12.2/targets/x86_64-linux/lib
+/usr/local/cuda-12.2/lib64
+/usr/local/cuda-12.2/extras/CUPTI/lib64
 ```
 
-#### Kubeflow Pipelines
+Этот файл указывает системе где искать совместно используемые библиотеки **CUDA**.
 
-Install the [Multi-User Kubeflow Pipelines](https://www.kubeflow.org/docs/components/pipelines/multi-user/) official Kubeflow component:
+Для пользователя указать переменные среды в самом конце файла `.bashrc`:
 
-```sh
-kustomize build apps/pipeline/upstream/env/cert-manager/platform-agnostic-multi-user | kubectl apply -f -
+```bash
+sudo nano ~/.bashrc
 ```
 
-If your container runtime is not docker, use pns executor instead:
-
-```sh
-kustomize build apps/pipeline/upstream/env/platform-agnostic-multi-user-pns | kubectl apply -f -
+```bash
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+export CUDA_HOME=/usr/local/cuda
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Refer to [argo workflow executor documentation](https://argoproj.github.io/argo-workflows/workflow-executors/#process-namespace-sharing-pns) for their pros and cons.
+Это переменные добавляют пути поиска библиотек и исполняемых файлов для локального пользователя.
 
-**Multi-User Kubeflow Pipelines dependencies**
+### 1.3. Установка CUDNN
 
-* Istio + Kubeflow Istio Resources
-* Kubeflow Roles
-* OIDC Auth Service (or cloud provider specific auth service)
-* Profiles + KFAM
+**CUDNN** представляет собой библиотеку примитивов для глубоких нейронных сетей с графическим ускорением. **CUDNN** обеспечивает оптимизированную реализацию многих распространенных операций глубокого обучения. Эти оптимизированные реализации могут значительно ускорить обучение и запуск глубоких нейронных сетей на графических процессорах **NVIDIA**.
 
-**Alternative: Kubeflow Pipelines Standalone**
+Скачать требуемую версию **CUDNN** можно по ссылке https://developer.nvidia.com/rdp/cudnn-archive. 
 
-You can install [Kubeflow Pipelines Standalone](https://www.kubeflow.org/docs/components/pipelines/installation/standalone-deployment/) which
+**Внимание**: Версия **CUDNN** должна быть совместима с установленной версией **CUDA**!
 
-* does not support multi user separation
-* has no dependencies on the other services mentioned here
+Далее выбрать `Local installer for linux x86_64 (Tar)` - скачиваемый tar-архив для локальной установки.
 
-You can learn more about their differences in [Installation Options for Kubeflow Pipelines
-](https://www.kubeflow.org/docs/components/pipelines/installation/overview/).
+**Примечание**: Для скачивания **CUDNN** необходимо наличие регистрации на сайте **NVIDIA**.
 
-Besides installation instructions in Kubeflow Pipelines Standalone documentation, you need to apply two virtual services to expose [Kubeflow Pipelines UI](https://github.com/kubeflow/pipelines/blob/1.7.0/manifests/kustomize/base/installs/multi-user/virtual-service.yaml) and [Metadata API](https://github.com/kubeflow/pipelines/blob/1.7.0/manifests/kustomize/base/metadata/options/istio/virtual-service.yaml) in kubeflow-gateway.
+![cudnn](./docs/images/cudnn.png)
 
-#### KServe / KFServing
+**Примечание**: Для видеокарты **Nvidia Tesla K80** последняя поддерживаемая версия **CUDNN 8.2.4**!
 
-KFServing was rebranded to KServe.
+После скачивания архива, для установки **CUDNN** нужно следовать официальной документации https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html...
 
-Install the KServe component:
+Распаковать:
 
-```sh
-kustomize build contrib/kserve/kserve | kubectl apply -f -
+```bash
+tar -xvf cudnn-linux-x86_64-8.9.1.23_cuda12-archive.tar.xz
 ```
 
-Install the Models web app:
+Скопировать файлы библиотеки в каталоги CUDA:
 
-```sh
-kustomize build contrib/kserve/models-web-app/overlays/kubeflow | kubectl apply -f -
+```bash
+sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include 
+sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64 
 ```
 
-- ../contrib/kserve/models-web-app/overlays/kubeflow
+Сделать добавленные файлы доступными для чтения:
 
-For those not ready to migrate to KServe, you can still install KFServing v0.6.1 with
-the following command, but we recommend migrating to KServe as soon as possible:
-
-```sh
-kustomize build apps/kfserving/upstream/overlays/kubeflow | kubectl apply -f -
+```bash
+sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
 ```
 
-#### Katib
+### 1.4. Проверка правильности установки
 
-Install the Katib official Kubeflow component:
-
-```sh
-kustomize build apps/katib/upstream/installs/katib-with-kubeflow | kubectl apply -f -
+```
+nvidia-smi
 ```
 
-#### Central Dashboard
+Вывод должен содержать информацию о видеокарте, драйвере и версии **CUDA**. В нашем примере это `535.86` и `12.2` соответственно:
 
-Install the Central Dashboard official Kubeflow component:
+```bash
+Wed Sep  6 15:48:52 2023       
++---------------------------------------------------------------------------------------+
+| NVIDIA-SMI 535.86.10              Driver Version: 535.86.10    CUDA Version: 12.2     |
+|-----------------------------------------+----------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+|                                         |                      |               MIG M. |
+|=========================================+======================+======================|
+|   0  NVIDIA GeForce RTX 4090        Off | 00000000:06:00.0 Off |                  Off |
+|  0%   36C    P8              11W / 450W |     31MiB / 24564MiB |      0%      Default |
+|                                         |                      |                  N/A |
++-----------------------------------------+----------------------+----------------------+
+                                                                                         
++---------------------------------------------------------------------------------------+
+| Processes:                                                                            |
+|  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+|        ID   ID                                                             Usage      |
+|=======================================================================================|
+|    0   N/A  N/A      1353      G   /usr/lib/xorg/Xorg                            9MiB |
+|    0   N/A  N/A      1726      G   /usr/bin/gnome-shell                          8MiB |
++---------------------------------------------------------------------------------------+
 
-```sh
-kustomize build apps/centraldashboard/upstream/overlays/kserve | kubectl apply -f -
 ```
 
-#### Admission Webhook
+При возникновении ошибок попробовать перезапустить ПК:
 
-Install the Admission Webhook for PodDefaults:
-
-```sh
-kustomize build apps/admission-webhook/upstream/overlays/cert-manager | kubectl apply -f -
+```bash
+sudo reboot
 ```
 
-#### Notebooks
+### 1.5.  Установка nvitop (опционально)
 
-Install the Notebook Controller official Kubeflow component:
+Для интерактивного просмотра процессов NVIDIA-GPU существуют библиотека Python под названием **nvitop**.
 
-```sh
-kustomize build apps/jupyter/notebook-controller/upstream/overlays/kubeflow | kubectl apply -f -
+Чтобы её установить нужен менеджер пакетов pip. Для его установки в Ubuntu необходимо выполнить команду
+
+```bash
+sudo apt install python3-pip
 ```
 
-Install the Jupyter Web App official Kubeflow component:
+Далее с помощью пакетного менеджера pip установить nvitop:
 
-```sh
-kustomize build apps/jupyter/jupyter-web-app/upstream/overlays/istio | kubectl apply -f -
+```bash
+pip install nvitop
 ```
 
-#### Profiles + KFAM
+Для её корректной работы нужно добавить путь `~/.local/bin` в переменную среды PATH. Это сделано на шаге 1.2, когда в файл ~/.bashrc добавили строчку `export PATH="$HOME/.local/bin:$PATH"`.
 
-Install the Profile Controller and the Kubeflow Access-Management (KFAM) official Kubeflow
-components:
+Для вывода результатов достаточно в консоли прописать команду
 
-```sh
-kustomize build apps/profiles/upstream/overlays/kubeflow | kubectl apply -f -
+```bash
+nvitop
 ```
 
-#### Volumes Web App
+Вывод должен содержать информацию о видеокарте, драйвере и версии CUDA использование памяти, загруженность и многое другое в интерактивном режиме:
 
-Install the Volumes Web App official Kubeflow component:
+![nvitop](./docs/images/nvitop.png)
 
-```sh
-kustomize build apps/volumes-web-app/upstream/overlays/istio | kubectl apply -f -
+
+
+## 2. Конфигурация кластера
+
+### 2.1. Установка MicroK8s
+
+**MicroK8s** — это самый простой и быстрый способ запустить **Kubernetes**. **MicroK8s** предоставляет все возможности **Kubernetes** с помощью одной команды: развернуть кластер включить необходимые службы. Полностью изолированный snap-пакет развертывания защищает базовую систему.
+
+**Kubeflow** — это набор инструментов машинного обучения для **Kubernetes**, представляющий собой набор независимых компонент, интегрированных в единую систему.
+
+![KubeFlow](./docs/images/KubeFlow.png)
+
+**Kubeflow** позволяет запускать **Jupyter**-ноутбуки, создавать рабочие процессы выполнения в виде pipeline'ов, производить обучение моделей, осуществлять подбор гиперпараметров, а также развёртывать обученные модели в виде сервисов. Например, развёртывание моделей осуществляется с помощью отдельного сервиса **KServe**.
+
+![KubeFlow architecture](./docs/images/KubeFlow architecture.png)
+
+На текущий момент **Kubeflow** несовместим с версией **Kubernetes 1.22** и выше (https://github.com/kubeflow/manifests).
+
+Версия **MicroK8S 1.21** имеет проблемы с поддержкой GPU (https://github.com/canonical/microk8s/issues/3226#issuecomment-1150073929) из-за используемой версией GPU operator.
+
+Версия **MicroK8S 1.20** использует **NVIDIA Plugin** вместо **GPU operator**, поддерживает GPU, совместим с **KubeFlow**
+
+**Внимание:** **MicroK8S 1.20** конфликтует с nvidia-docker2 (https://github.com/ubuntu/microk8s/issues/1844#issuecomment-750760506)!
+
+Установить **MicroK8S** версии **1.20/stable** можно с помощью команды:
+
+```bash
+sudo snap install microk8s --classic --channel=1.20/stable
 ```
 
-#### Tensorboard
+Проинициализировать **MicroK8S**:
 
-Install the Tensorboards Web App official Kubeflow component:
-
-```sh
-kustomize build apps/tensorboard/tensorboards-web-app/upstream/overlays/istio | kubectl apply -f -
+```bash
+microk8s inspect
+microk8s status
 ```
 
-Install the Tensorboard Controller official Kubeflow component:
+Включить dns (внутреннюю сеть) и storage (хранилище для данных кластера):
 
-```sh
-kustomize build apps/tensorboard/tensorboard-controller/upstream/overlays/kubeflow | kubectl apply -f -
+```bash
+microk8s enable dns storage
 ```
 
-#### Training Operator
+Включить поддержку GPU:
 
-Install the Training Operator official Kubeflow component:
-
-```sh
-kustomize build apps/training-operator/upstream/overlays/kubeflow | kubectl apply -f -
+```bash
+microk8s enable gpu
 ```
 
-#### User Namespace
+Проверить инициализацию:
 
-Finally, create a new namespace for the the default user (named `kubeflow-user-example-com`).
-
-```sh
-kustomize build common/user-namespace/base | kubectl apply -f -
+```bash
+microk8s status
 ```
 
-### Connect to your Kubeflow Cluster
+Вывод команды должен быть следующим:
 
-After installation, it will take some time for all Pods to become ready. Make sure all Pods are ready before trying to connect, otherwise you might get unexpected errors. To check that all Kubeflow-related Pods are ready, use the following commands:
+```bash
+microk8s is running
+high-availability: no
+  datastore master nodes: 192.168.21.48:19001
+  datastore standby nodes: none
+addons:
+  enabled:
+    dns                  # CoreDNS
+    gpu                  # Automatic enablement of Nvidia CUDA
+    ha-cluster           # Configure high availability on the current node
+    storage              # Storage class; allocates storage from host directory
+  disabled:
+    ambassador           # Ambassador API Gateway and Ingress
+    cilium               # SDN, fast with full network policy
+    dashboard            # The Kubernetes dashboard
+    fluentd              # Elasticsearch-Fluentd-Kibana logging and monitoring
+    helm                 # Helm 2 - the package manager for Kubernetes
+    helm3                # Helm 3 - Kubernetes package manager
+    host-access          # Allow Pods connecting to Host services smoothly
+    ingress              # Ingress controller for external access
+    istio                # Core Istio service mesh services
+    jaeger               # Kubernetes Jaeger operator with its simple config
+    keda                 # Kubernetes-based Event Driven Autoscaling
+    knative              # The Knative framework on Kubernetes.
+    kubeflow             # Kubeflow for easy ML deployments
+    linkerd              # Linkerd is a service mesh for Kubernetes and other frameworks
+    metallb              # Loadbalancer for your Kubernetes cluster
+    metrics-server       # K8s Metrics Server for API access to service metrics
+    multus               # Multus CNI enables attaching multiple network interfaces to pods
+    portainer            # Portainer UI for your Kubernetes cluster
+    prometheus           # Prometheus operator for monitoring and logging
+    rbac                 # Role-Based Access Control for authorisation
+    registry             # Private image registry exposed on localhost:32000
+    traefik              # traefik Ingress controller for external access
 
-```sh
-kubectl get pods -n cert-manager
-kubectl get pods -n istio-system
-kubectl get pods -n auth
-kubectl get pods -n knative-eventing
-kubectl get pods -n knative-serving
-kubectl get pods -n kubeflow
-kubectl get pods -n kubeflow-user-example-com
 ```
 
-#### Port-Forward
+Для проверки поддержки **GPU** можно запросить список ресурсов узла, выполнив команду:
 
-The default way of accessing Kubeflow is via port-forward. This enables you to get started quickly without imposing any requirements on your environment. Run the following to port-forward Istio's Ingress-Gateway to local port `8080`:
-
-```sh
-kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+```bash
+microk8s kubectl get node -o jsonpath="{range .items[*]}{..allocatable}{'\n'}{end}"
 ```
 
-After running the command, you can access the Kubeflow Central Dashboard by doing the following:
+Ответ должен содержать запись вида `"nvidia.com/gpu":"xxx"`, где `xxx` - количество GPU:
 
-1. Open your browser and visit `http://localhost:8080`. You should get the Dex login screen.
-2. Login with the default user's credential. The default email address is `user@example.com` and the default password is `12341234`.
+```
+{"cpu":"8","ephemeral-storage":"478030536Ki","hugepages-1Gi":"0","hugepages-2Mi":"0","memory":"32705760Ki","nvidia.com/gpu":"1","pods":"110"}
+```
 
-#### NodePort / LoadBalancer / Ingress
+### 2.1. Добавление NFS-хранилища
 
-In order to connect to Kubeflow using NodePort / LoadBalancer / Ingress, you need to setup HTTPS. The reason is that many of our web apps (e.g., Tensorboard Web App, Jupyter Web App, Katib UI) use [Secure Cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#restrict_access_to_cookies), so accessing Kubeflow with HTTP over a non-localhost domain does not work.
+NFS-хранилище предоставляет возможность хранения данных в единой сетевой папке. Это особенно удобно, когда кластер состоит из нескольких ПК (нод, узлов). Наличие NFS-хранилища упрощает хранение моделей и доступ к ним из единого места, избавляя от необходимости дублирования копий на нескольких узлах.
 
-Exposing your Kubeflow cluster with proper HTTPS is a process heavily dependent on your environment. For this reason, please take a look at the available [Kubeflow distributions](https://www.kubeflow.org/docs/started/installing-kubeflow/#install-a-packaged-kubeflow-distribution), which are targeted to specific environments, and select the one that fits your needs.
+#### 2.1.1. Настройка NFS-сервера
 
----
-**NOTE**
+Сначала необходимо установить пакет `nfs-kernel-server`
 
-If you absolutely need to expose Kubeflow over HTTP, you can disable the `Secure Cookies` feature by setting the `APP_SECURE_COOKIES` environment variable to `false` in every relevant web app. This is not recommended, as it poses security risks.
+```bash
+sudo apt install nfs-kernel-server
+```
 
----
+Далее нужно создать каталог, где будет располагаться хранилище.
 
-### Change default user password
+```bash
+sudo mkdir /mnt/nfs -p
+```
 
-For security reasons, we don't want to use the default password for the default Kubeflow user when installing in security-sensitive environments. Instead, you should define your own password before deploying. To define a password for the default user:
+Для безопасности NFS преобразует любые операции **root** на **клиенте** в операции с учетными данными `nobody:nogroup`. В связи с этим, необходимо изменить владельца каталога для соответствия этим учетным данным.
 
-1. Pick a password for the default user, with email `user@example.com`, and hash it using `bcrypt`:
+```bash
+sudo chown nobody:nogroup /mnt/nfs
+```
 
-    ```sh
-    python3 -c 'from passlib.hash import bcrypt; import getpass; print(bcrypt.using(rounds=12, ident="2y").hash(getpass.getpass()))'
-    ```
+Настройка общего доступа осуществляется с помощью конфигурационного файла `/etc/exports`.  Откроем его для редактирования:
 
-2. Edit `dex/base/config-map.yaml` and fill the relevant field with the hash of the password you chose:
+```bash
+sudo nano /etc/exports
+```
 
-    ```yaml
-    ...
-      staticPasswords:
-      - email: user@example.com
-        hash: <enter the generated hash here>
-    ```
+Синтаксис выглядит следующим образом:
 
-## Frequently Asked Questions
+```
+directory_to_share client_ip(option_1,...,option_N)
+```
 
-- **Q:** What versions of Istio, Knative, Cert-Manager, Argo, ... are compatible with Kubeflow 1.4? \
-  **A:** Please refer to each individual component's documentation for a dependency compatibility range. For Istio, Knative, Dex, Cert-Manager and OIDC-AuthService, the versions in `common` are the ones we have validated.
+Нужно создать строку для каждого каталога, к которому предоставляется общий доступ. Ниже представлены основные обозначения и опции:
 
-- **Q:** Can I use the latest Kustomize version (`v4.x`)? \
-  **A:** Kubeflow 1.4.0 is not compatible with the latest versions of of kustomize 4.x. This is due to changes in the order resources are sorted and printed. Please see [kubernetes-sigs/kustomize#3794](https://github.com/kubernetes-sigs/kustomize/issues/3794) and [kubeflow/manifests#1797](https://github.com/kubeflow/manifests/issues/1797). We know this is not ideal and are working with the upstream kustomize team to add support for the latest versions of kustomize as soon as we can.
+- `directory_to_share` - путь к директории, которую нужно сделать доступной по сети.
+- `client_ip`  IP-адрес или диапазон адресов, которые могут получить доступ к папке.
+
+- `rw` - доступ **клиену** к чтению и записи на соответствующем томе.
+- `sync` - принудительно заставляет NFS записывать изменения на диске, прежде чем отправлять ответ. В результате мы получается более стабильная работа, поскольку в ответе отражается фактическое состояние удаленного тома. Однако при этом снижается скорость операций с файлами.
+- `async` - не блокировать подключения пока данные записываются на диск.
+- `no_subtree_check` - предотвращает проверку вложенного дерева, когда **хост** проверяет фактическую доступность файла в экспортированном дереве при каждом запросе. Это может вызвать много проблем в случае переименования файла, когда он открыт **на клиентской** системе. Проверку вложенного дерева в большинстве случаев лучше отключить.
+- `subtree_check` - проверять не пытается ли пользователь выйти за пределы экспортированной папки.
+- `no_root_squash`: по умолчанию NFS преобразует запросы удаленного пользователя **root** в запросы пользователя без привилегий на сервере. Это предназначено для обеспечения безопасности, чтобы пользователь **root** **клиентской** системы не мог использовать файловую систему **хоста** с правами **root**. Опция `no_root_squash` отключает такое поведение для определенных общих ресурсов.
+- `root_squash` - подменять запросы от root на анонимные, используется по умолчанию.
+
+- `anonuid` и `anongid` - указывает user-ID (UID) и group-ID (GID) для анонимного пользователя.
+- `secure` - использовать для соединения только порты ниже 1024.
+- `insecure` - использовать любые порты.
+- `nohide` - не скрывать поддиректории при, открытии доступа к нескольким директориям.
+
+UID анонимного пользователя можно узнать в файле `/etc/passwd` или выполнив команду
+
+```bash
+cat /etc/passwd | grep nobody
+```
+
+GID для анонимного пользователя можно узнать в файле `/etc/group` или выполнив команду
+
+```bash
+cat /etc/group | grep nogroup
+```
+
+Для сети Megaputer конфигурация выглядит следующим образом.
+
+```bash
+/mnt/nfs 192.168.20.0/22(rw,sync,insecure,nohide,no_root_squash,anonuid=65534,anongid=65534,no_subtree_check)
+```
+
+Адрес `192.168.20.0/22` задаёт диапазон адресов от `192.168.20.1`  до  `192.168.23.254`, которые будут иметь доступ к NFS-хранилищу.
+
+Чтобы сделать общие ресурсы доступными для настроенных клиентов, нужно перезапустить сервер NFS с помощью команды:
+
+```bash
+sudo systemctl restart nfs-kernel-server
+```
+
+#### 2.1.2. Добавление NFS-хранилища
+
+Включить **Helm** в **MicroK8S**:
+
+```bash
+microk8s enable helm3
+```
+
+**Примечание:** Лучше активировать **Helm3**, т.к. при использовании просто **Helm** может возникнуть ошибка отсутствия **Tiller**.
+
+Следовать [инструкциям](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner):
+
+```bash
+microk8s helm3 repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+microk8s helm3 install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+    --set nfs.server=x.x.x.x \
+    --set nfs.path=/exported/path
+```
+
+где `x.x.x.x` - IP-адрес узла, а `/exported/path` - путь к папке NFS-хранилища (в нашем примере `/mnt/nfs`)
+
+Проверить компоненты **StorageClass** в кластере с помощью команды:
+
+```bash
+microk8s kubectl get storageclass
+```
+
+Вывод должен быть таким:
+
+```bash
+NAME                          PROVISIONER                                     RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+microk8s-hostpath (default)   microk8s.io/hostpath                            Delete          Immediate           false                  24h
+nfs-client                    cluster.local/nfs-subdir-external-provisioner   Delete          Immediate           true                   24h
+```
+
+В кластере уже присутствует хранилище **storage**, которое было развёрнуто в разделе 2.1, которое является [хранилищем данных по умолчанию](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/) (**Default Storage Class**). При развёртывании **NFS**-хранилища возможно ему также была присвоена метка хранилища по умолчанию, что может привести к конфликтам. В частности при создании блокнота (**Jupyter Notebook**) в **Kubeflow** для хранения сопутствующих данных указывается хранилище по умолчанию. При наличии двух таких хранилищ возникает конфликт и вывод будет таким:
+
+```bash
+NAME                          PROVISIONER                                         RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+microk8s-hostpath (default)   microk8s.io/hostpath                                Delete          Immediate           false                  3d11h
+nfs-client (default)          cluster.local/nfs-nfs-subdir-external-provisioner   Delete          Immediate           true                   3d11h
+```
+
+Тогда для хранилища `nfs-client` нужно убрать флаг **default**. Делается это командой
+
+```bash
+microk8s kubectl patch storageclass nfs-client -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+```
+
+## 3. Установка KubeFlow
+
+### 3.1. Установка Kustomize
+
+Установка **KubeFlow** осуществляется с помощью **Kustomize**. Наиболее актуальная версия **Kustomize**, поддерживаемая **Kubeflow**  является **3.2.0** (https://github.com/kubeflow/manifests).
+
+Скачать **Kustomize 3.2.0** можно с помощью команды
+
+```bash
+wget https://github.com/kubernetes-sigs/kustomize/releases/download/v3.2.0/kustomize_3.2.0_linux_amd64
+```
+
+Установка заключается в помещении исполняемого файла в папку `/usr/local/bin` и предоставлении разрешения для его исполнения: 
+
+```bash
+chmod +x kustomize_3.2.0_linux_amd64
+sudo mv kustomize_3.2.0_linux_amd64 /usr/local/bin/kustomize
+```
+
+### 3.2. Установка KubeFlow
+
+На текущий момент самая последняя версия **Kubeflow 1.6.1**, но она на данный момент не работает с **Kubernetes 1.20** (https://github.com/kubeflow/manifests/issues/2305). Поэтому рекомендуется развернуть версию **Kubeflow 1.5**.
+
+Клонировать репозиторий **KubeFlow 1.5**:
+
+```bash
+git clone -b v1.5 https://github.com/yurkov-mv/kubeflow-manifests.git
+```
+
+Для авторизации в **Kubeflow** используется **Dex**. По умолчанию используются  адрес электронной почты `user@megaputer.com` и пароль `11111111`. Их можно изменить после развёртывания **Kubeflow**, но удобнее это сделать заранее. 
+
+Чтобы установить новые адрес электронной почти и пароль нужно отредактировать файл `~/manifests/common/dex/base/config-map.yaml`. В целях безопасности пароль в файле хранится в хэшированном виде. Чтобы получить хэш для своего пароля можно воспользоваться функцией `bcrypt` из библиотеки **Python** **Passlib** :
+
+```bash
+python3 -c 'from passlib.hash import bcrypt; import getpass; print(bcrypt.using(rounds=12, ident="2y").hash(getpass.getpass()))'
+```
+
+После введения вышеприведённой команды поступит приглашение ввести пароль. Введите пароль и нажмите `Enter`, в терминале появится строка с хэшем.
+
+Замечание: Возможно понадобится установить библиотеку `passlib` через пакетной менеджер **pip**:
+
+```bash
+pip install passlib
+```
+
+Далее в файле `~/manifests/common/dex/base/config-map.yaml` изменяем адрес электронной почты и хэш пароля на свои:
+
+```yaml
+  ...
+    staticPasswords:
+    - email: user@megaputer.com
+      hash: $2y$12$4K/VkmDd1q1Orb3xAt82zu8gk7Ad6ReFR4LCP9UeYE90NLiN9Df72
+```
+
+По умолчанию пользовательское пространство имён (namespace) в **KubeFlow** задано как `kubeflow-megaputer`. В этом пространстве имён будут создаваться **Inference Service** и оно будет содержаться в адресе при обращении к нему. Чтобы изменить название необходимо отредактировать файл `~/manifests/common/user-namespace/base/params.env` и изменить в нём поле `user` на адрес электронной почты из предыдущего шага, а поле `profile-name` на предпочтительное:
+
+```ini
+user=user@megaputer.com
+profile-name=kubeflow-megaputer
+```
+
+Для того, чтобы указать внешний порт для обращения к кластеру нужно изменить файл `~/manifests/common/istio-1-11/istio-install/base/patches/service.yaml`   следующим образом: 
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+spec:
+  ports:
+  - name: http2
+    nodePort: 31368
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  type: NodePort
+```
+
+, где 31368 - номер внешнего порта, который должен лежать в диапазоне 31000 - 33000.
+
+Установить **KubeFlow** с помощью **Kustomize**:
+
+```bash
+while ! kustomize build ~/kubeflow-manifests/example | microk8s kubectl apply -f -; do echo "Retrying to apply resources"; sleep 10; done
+```
+
+Убедиться в правильности установки можно с помощью наблюдения за **POD**'ами. 
+
+```bash
+watch -c microk8s kubectl get pods -n kubeflow
+```
+
+Все они должны быть в состоянии `Running`:
+
+```
+NAME                                                         READY   STATUS    RESTARTS   AGE
+kubeflow-pipelines-profile-controller-84bcbdb899-tjwhx       1/1     Running   6          16d
+volumes-web-app-deployment-87484c848-4xs6m                   1/1     Running   5          16d
+katib-ui-f787b9d88-64ct7                                     1/1     Running   5          16d
+katib-mysql-6dcb447c6f-gzwl5                                 1/1     Running   5          16d
+kserve-controller-manager-0                                  2/2     Running   12         16d
+katib-controller-58ddb4b856-4wxf9                            1/1     Running   5          16d
+jupyter-web-app-deployment-5886974887-ctmpr                  1/1     Running   5          16d
+metacontroller-0                                             1/1     Running   5          16d
+admission-webhook-deployment-7df7558c67-cjgpm                1/1     Running   5          16d
+metadata-envoy-deployment-86d856fc6-jzsc5                    1/1     Running   5          16d
+training-operator-7b8cc9865d-p6xdx                           1/1     Running   8          16d
+cache-server-5bdbd59959-qsswj                                2/2     Running   10         16d
+kserve-models-web-app-5c64c8d8bb-948dw                       2/2     Running   12         16d
+profiles-deployment-5cdc5dc577-tgv25                         3/3     Running   31         16d
+ml-pipeline-persistenceagent-7bf47b869c-xhbf9                2/2     Running   11         16d
+centraldashboard-5dd4f57bbd-h4stl                            2/2     Running   10         16d
+minio-5b65df66c9-xmrcg                                       2/2     Running   10         16d
+ml-pipeline-visualizationserver-6c7945497b-58r4l             2/2     Running   10         16d
+ml-pipeline-viewer-crd-68bcdc87f9-zzsxh                      2/2     Running   24         16d
+ml-pipeline-ui-779887656c-htch5                              2/2     Running   10         16d
+tensorboards-web-app-deployment-7c5db448d7-9zxzj             1/1     Running   5          16d
+katib-db-manager-6df878f5b8-6pxm8                            1/1     Running   6          16d
+ml-pipeline-scheduledworkflow-565fd7846-cbp5w                2/2     Running   12         16d
+mysql-f7b9b7dd4-wkqg5                                        2/2     Running   10         16d
+notebook-controller-deployment-6c5f5d6cfc-bhpzn              2/2     Running   24         16d
+metadata-writer-d7ff8d4bc-xrmlw                              2/2     Running   13         16d
+ml-pipeline-cb7dcd54b-5v7vh                                  2/2     Running   19         16d
+metadata-grpc-deployment-6f6f7776c5-8pblm                    2/2     Running   23         16d
+tensorboard-controller-controller-manager-5cbddb7fb5-zr9nm   3/3     Running   2767       16d
+workflow-controller-6bf87db995-nl9cn                         2/2     Running   2689       16d
+```
+
+После того, как все будет успешно установлено нужно узнать порт по котрому можно получить доступ к центральной панели. Это можно сделать обратившись к ресурсу `istio-ingressgateway` в пространстве имён `istio-system`:
+
+```bash
+microk8s kubectl get service istio-ingressgateway -n istio-system 
+```
+
+Вывод должен содержать информацию о соответствии внутренних и внешних портов (port-forwarding):
+
+```bash
+NAME                   TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                      AGE
+istio-ingressgateway   NodePort   10.152.183.181   <none>        15021:32693/TCP,80:31368/TCP,443:30303/TCP,31400:31034/TCP,15443:31551/TCP   24h
+```
+
+ В приведённом выше примере порту **80** в кластере соответствует внешний порт **31368**. Теперь можно войти в центральную панель управления, набрав в браузере адрес
+
+```bash
+http://127.0.0.1:31368/
+```
+
+**Внимание:** Для осуществления настроек лучше заходить через локальный адрес (127.0.0.1), иначе при применении настроек можно получить ошибку
+
+```bash
+[403] Could not find CSRF cookie XSRF-TOKEN in the request.
+```
+
+Ошибка возникает, т.к. подклюаение производится через обычный http, что предотвращает установку файла *cookie*. А для внесения изменений извне требует наличие данного cookie-файла для защиты от атаки "человек посередине".
+
+### 3.2. Создание  Jupyter Notebook (опционально)
+
+**Jupyter**-блокноты позволяют выполнять python-команды и команды bash для развёртывания и анализа сервисов моделей,  а также одновременно удобно хранить исполняемые команды совместно с их текстовым описанием.
+
+![jupyter-notebook](./docs/images/jupyter-notebook.png)
+
+Для создания **Jupyter**-ноутбука лучше использовать заранее подготовленный `Custom Image`, где уже предустановлены все необходимые библиотеки. Образом, содержащем **python**-библиотеку `kserve` является, например, `yurkoff/jupyter-scipy:v1.4`.
+
+### 3.3. Работа с Inference Service
+
+Работа с  **Inference Service** с помощью **Jupyter**-блокнота и yaml-файлов описана в документе [Inference Services](./docs/InferenceServices.md).
+
+## 4. Обход Dex при обращении к Inference Service
+
+При обращении к сервисам **KServe**, развёрнутым в **Kubflow** требуется авторизация, осуществляемая через сервис **Dex**. Иногда это может стать проблемой особенно при обращении из множества источников, т.к. начальное обращение требует получения сессии. Одним из решением этой проблемы является обход аутентификации **Dex** при обращении к сервисам.
+
+**Kubeflow** через ресурс **VirtualService** настраивает, что весь трафик через общий шлюз **Istio Ingress Gateway** проходит через **EnvoyFilter** авторизации запросов.  **EnvoyFilter** направляет входящий трафик в [OIDC AuthService](https://github.com/arrikto/oidc-authservice) , который проверяет файл *cookie* авторизации и может либо разрешить выполнение запроса, либо отклонить его из-за недействительной авторизации, либо инициировать рабочий процесс аутентификации с помощью внешней системы, такой как [Dex](https://dexidp.io/) .
+
+Для обхода **Dex** следует избавиться от входного **EnvoyFilter**, а вместо него использовать **External Authorization** от **Istio**. Весь трафик, за исключением трафика предназначенного для **Inference Service**'ов направлять на авторизацию посредством **Authorization Policy** от **Istio**.
+
+![kubeflow-default-ingress](./docs/images/kubeflow-default-ingress.png)
+
+Для начала добавим внешнюю авторизацию, отредактировав файл `configmap` в пространстве имён `istio-system`
+
+```bash
+microk8s kubectl edit configmap istio -n istio-system
+```
+
+и добавив в него информацию, связанную с **Dex**:
+
+```yaml
+...
+    extensionProviders:
+    - name: "dex-auth-provider"
+      envoyExtAuthzHttp:
+        service: "authservice.istio-system.svc.cluster.local"
+        port: "8080" 
+        includeHeadersInCheck: ["authorization", "cookie", "x-auth-token"]
+        headersToUpstreamOnAllow: ["kubeflow-userid"]
+```
+
+Раздел `data` должен выглядеть следующим образом:
+
+```yaml
+data:
+  # Configuration file for the mesh networks to be used by the Split Horizon EDS.
+  mesh: |-
+    accessLogFile: /dev/stdout
+    defaultConfig:
+      discoveryAddress: istiod.istio-system.svc:15012
+      proxyMetadata: {}
+      tracing: {}
+    enablePrometheusMerge: true
+    rootNamespace: istio-system
+    tcpKeepalive:
+      interval: 5s
+      probes: 3
+      time: 10s
+    trustDomain: cluster.local
+    extensionProviders:
+    - name: "dex-auth-provider"
+      envoyExtAuthzHttp:
+        service: "authservice.istio-system.svc.cluster.local"
+        port: "8080" 
+        includeHeadersInCheck: ["authorization", "cookie", "x-auth-token"]
+        headersToUpstreamOnAllow: ["kubeflow-userid"]
+  meshNetworks: 'networks: {}'
+```
+
+Формат обращения к **Inference Service** выглядит следующим образом:
+
+```bash
+http://host_ip:host_port/v1/models/model_name:predict
+```
+
+- `host_ip` - IP-адрес кластера.
+- `host_port` - внешний порт, соответствующий внутреннему порту 80.
+- `model_name` - имя модели.
+
+Для успешного обхода **Dex**, нужно создать политику (файл `dex-authorization-policy.yaml`), которая отправляет весь трафик на авторизацию, за исключением адресов, которые начинаются на `/v1`:
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: dex-auth
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: CUSTOM
+  provider:
+    # The provider name must match the extension provider defined in the mesh config.
+    name: dex-auth-provider
+  rules:
+  # The rules specify when to trigger the external authorizer.
+  - to:
+    - operation:
+        notPaths: ["/v1*"]
+```
+
+Применить файл политики следующей командой:
+
+```bash
+microk8s kubectl apply -f dex-authorization-policy.yaml
+```
+
+Далее нужно создать файл **Authorization Policy**  (`allow-inference-services.yaml`) для разрешения прохождения трафика с адресом `/v1` через **Istio Ingress Gateway**
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-inference-services
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+  - to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/v1*"]
+```
+
+```bash
+microk8s kubectl apply -f allow-inference-services.yaml
+```
+
+Теперь можно удалить исходный `authn-filter`
+
+```bash
+microk8s kubectl delete -n istio-system envoyfilters.networking.istio.io authn-filter
+```
+
+ и перезапустить `istiod`:
+
+```bash
+microk8s kubectl rollout restart deployment/istiod -n istio-system
+```
+
+## 5. Изменение имени хоста в Inference Service
+
+При обращении к модели в заголовке POST-запроса в поле `Host` требуется указать адрес хоста сервиса, который имеет следующий формат:
+
+```bash
+service_name.namespace.example.com
+```
+
+- `service_name` - имя **Inference Service**.
+- `namespace` - пространство имён, где развёрнут **Inference Service**.
+- `example.com` - имя, которое указано в файле `~\manifests\contrib\kserve\kserve\kserve_kubeflow.yaml`
+
+Чтобы изменить имя `example.com` на своё, нужно отредактировать **Config Map** `config-domain` в пространстве имён `knative-serving`:
+
+```bash
+microk8s kubectl edit configmap config-domain -n knative-serving
+```
+
+Нужно удалить ключ `_example` в поле `data` и написать вместо него желаемое имя в формате `name: ""`. Для `megaputer.com` файл будет выглядить следующим образом:
+
+```yaml
+apiVersion: v1
+data:
+    megaputer.com: ""
+    example.org: |
+      selector:
+        app: nonprofit
+...
+```
+
+**Knative** согласовывает изменения, внесенные в **Config Map**, и автоматически обновляет имя хоста для всех развернутых сервисов и маршрутов.
+
+## 6. Изменение логина и пароля в KubeFlow
+
+Чтобы изменить логин и пароль в **Dex** после развёртывания **Kubflow** достаточно отредактировать **ConfigMap** `dex` в пространстве имён `auth`
+
+```bash
+microk8s kubectl edit configmap dex -n auth
+```
+
+и перезапустить **Deployment** `dex`
+
+```bash
+microk8s kubectl rollout restart deployment dex -n auth
+```
+
+## 7. Изменение ConfigMap (опционально)
+
+```bash
+microk8s kubectl edit configmap inferenceservice-config -n kubeflow
+```
+
+## 8. Получение токена и сертификата  для доступа к кластеру
+
+Для управления кластером через REST-API необходимо получить токен и сертификат. Делается это с помощью следующих команд:
+
+```bash
+APISERVER=$(microk8s kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+SECRET_NAME=$(microk8s kubectl get serviceaccount default -o jsonpath='{.secrets[0].name}')
+TOKEN=$(microk8s kubectl get secret $SECRET_NAME -o jsonpath='{.data.token}' | base64 --decode)
+echo $TOKEN > /mnt/nfs/token.txt
+microk8s kubectl get secrets $SECRET_NAME -n default -o jsonpath='{.data.ca\.crt}' | base64 --decode > /mnt/nfs/ca.crt
+```
+
+## 9. Grafana (опционально)
+
+### 9.1. Развернуть **Grafana** и **Prometheus**
+
+**Grafana** - это система для визуализации, мониторинга и анализа данных. Она позволяет пользователям создавать дашборды с панелями, каждая из которых отображает определенные показатели в течение установленного периода времени.
+
+**Prometheus** - это база данных временных рядов, которая нужна для логирования метрик, отображаемых в **Grafana**.
+
+Для включения **Grafana** и **Prometheus** в кластере **MicroK8S** нужно выполнить команду:
+
+```bash
+microk8s enable prometheus
+```
+
+Чтобы метрики отображались по адресу [http:://{cluster_address}:{cluster_port}/grafana]() и не пересекались с **Dashboard'ом Kubeflow** необходимо проделать ряд действий:
+
+Развернуть хранилище для хранения настроек **Grafana** в пространстве имён **monitoring**:
+
+```bash
+microk8s kubectl apply -f ./nvidia/pvc-grafana-settings.yaml --namespace=monitoring
+```
+
+Файл **pvc-grafana-settings.yaml** должен иметь следующее содержимое:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-grafana-settings
+spec:
+  storageClassName: nfs-client
+  resources:
+    requests:
+      storage: 100Mi
+  accessModes:
+    - ReadWriteMany
+```
+
+В развёрнутое хранилище добавить файл **grafana.ini** со следующим содержимым:
+
+```ini
+[server]
+root_url = http://127.0.0.1:3000/grafana
+serve_from_sub_path = true
+```
+
+Далее нужно отредактировать **Deployment** для применения настроек:
+
+```bash
+microk8s kubectl edit deployments.apps -n monitoring grafana
+```
+
+В файл нужно указать созданное хранилище для настроек...
+
+В разделе **volumeMounts** добавить строчки:
+
+```yaml
+        - mountPath: /etc/grafana
+          name: grafana-settings
+```
+
+В разделе **volumes** добавить строчки:
+
+```yaml
+      - name: grafana-settings
+        persistentVolumeClaim:
+          claimName: pvc-grafana-settings
+```
+
+Теперь необходимо перезапустить **Deployment Grafana**:
+
+```bash
+microk8s kubectl rollout restart -n monitoring deployment grafana
+```
+
+### 9.2. Развернуть **Exporter** для сбора метрик GPU
+
+Для начала нужно склонировать репозиторий https://github.com/utkuozdemir/helm-charts
+
+```bash
+git clone https://github.com/utkuozdemir/helm-charts
+```
+
+По-умолчанию **nvidia-gpu-exporter** развёртывается на внешнем пору 9835 в качестве **NodePort**. Но т.к. в **Kubeflow** уже развёрнут **Istio**, то развёртывать **nvidia-gpu-exporter** будем как внутренний сервис, а извне он будет доступен по адресу  [http:://{cluster_address}:{cluster_port}/grafana]() благодаря **VirtualService** и **AuthorizationPolicy**. Чтобы этого добиться необходимо произвести ряд манипуляций...
+
+Перейти в папку `nvidia-gpu-exporter` склонированного репозитория.
+
+- Отредактировать файл **values.yaml**. В файле в разделе `service` заменить порт с 9835 на 80 и закомментировать строчку `nodePort`, должно получиться так:
+
+```yaml
+service:
+  # -- Type of the service
+  type: ClusterIP
+  # -- Port for the service to use
+  port: 80
+  # -- The node port to use if service type is NodePort or LoadBalancer.
+  # nodePort:
+```
+
+- В папке **templates** отредактировать файл **values.yaml**. В файле в разделе `ports` заменить  значение `targetPort` с `http` на `{{ .Values.port }}`, должно получиться так:
+
+```yaml
+ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.port }}
+      protocol: TCP
+      name: http
+      {{- if and (.Values.service.nodePort) (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+```
+
+- В папке **templates** отредактировать файл **daemonset.yaml**. В файле в разделе `containers` убрать строчки, связянные с `livenessProbe` и `readinessProbe`:
+
+```yaml
+      ports:
+        - name: http
+          containerPort: {{ .Values.port }}
+          protocol: TCP
+          {{- if .Values.hostPort.enabled }}
+          hostPort: {{ .Values.hostPort.port }}
+          {{- end }}
+      volumeMounts:
+        {{- toYaml .Values.volumeMounts | nindent 12 }}
+      resources:
+        {{- toYaml .Values.resources | nindent 12 }}
+```
+
+Далее развернуть **nvidia-gpu-exporter** следующей коммандой:
+
+```bash
+microk8s helm3 install nvidia-gpu-exporter ~/helm-charts/nvidia-gpu-exporter
+```
+
+Для сбора метрик системой **Prometheus** необходимо развернуть **ServiceMonitor**. Для этого нужно создать файл **service-monitor.yaml** со следующим содержимым:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+  name: nvidia-gpu-exporter
+  namespace: default
+spec:
+  endpoints:
+  - interval: 30s
+    port: http
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: nvidia-gpu-exporter
+```
+
+и развернуть его с помощью комманды
+
+```bash
+microk8s kubectl apply -f service-monitor.yaml
+```
+
+### 9.3. Обеспечить доступ к Grafana извне
+
+Чтобы можно было наблюдать собранные метрии извне, необходимо натроить сеть **Istio**. Для этого нужно развернуть ресурсы **Gateway**, **VirtualService** и **AuthorizationPolicy** следующего содержания...
+
+**gateway.yaml**
+
+```yaml
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: nvidia-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http-port
+      number: 80
+      protocol: HTTP
+```
+
+------
+
+**virtual-service.yaml**
+
+```yaml
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: grafana
+  namespace: default
+spec:
+  gateways:
+    - default/nvidia-gateway
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /grafana
+    route:
+    - destination:
+        host: grafana.monitoring.svc.cluster.local
+        port:
+          number: 3000
+
+```
+
+------
+
+**authorization-policy.yaml**
+
+```yaml
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: grafana-authorization-policy
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+  - to:
+    - operation:
+        methods: ["GET", "POST"]
+        paths: ["/grafana*", "/login*"]
+```
+
+------
+
+**Gateway** позволяет принимать трафик извне на порт 80. **VirtualService** направляет трафик с **Gateway** (с порта 80 и пути `/grafana`) к сервису **Grafana**. **AuthorizationPolicy** Разрешает поступление трафика извне для путей, начинающихся с `/grafana` и `/login`.
+
+Далее нужно развернуть вышеописанные ресурсы с помощью комманд:
+
+```bash
+microk8s kubectl apply -f gateway.yaml
+microk8s kubectl apply -f virtual-service.yaml
+microk8s kubectl apply -f authorization-policy.yaml
+```
+
+### 9.4. Настройка Grafana Dashboard
+
+Теперь можно зайти в **Grafana Dashboard** по адресу http://127.0.0.1:31368/grafana. Логин **admin**, пароль: **admin**.
+
+Далее нужно импортировать Dashboard:
+
+https://grafana.com/grafana/dashboards/14574-nvidia-gpu-metrics/
+
+Отредактировать переменную **gpu**:
+
+```json
+Query: nvidia_smi_index
+Regex: /.uuid="(.*)"./
+```
+
+В результате по каждой **GPU** можно увидеть её метрики в красивом и удобном формате.
+
+![grafana](./docs/images/grafana.png)
+
+## 10. Добавление и удаление узлов в кластере
+
+### 10.1. Добавление узла
+
+Для добавления нового узла в кластер, нужно установить на добавляемом узле **MicroK8S** и выполнить команду
+
+```bash
+microk8s enable gpu
+```
+
+На главном узле кластера выполнить команду 
+
+```bash
+microk8s add-node
+```
+
+Данная команда позволяет получить инструкции для добавления узла:
+
+```bash
+From the node you wish to join to this cluster, run the following:
+microk8s join 192.168.175.77:25000/066502d156d4e98aaca2ef17bd53a94c
+
+If the node you are adding is not reachable through the default interface you can use one of the following:
+ microk8s join 192.168.175.77:25000/066502d156d4e98aaca2ef17bd53a94c
+ microk8s join 169.254.3.1:25000/066502d156d4e98aaca2ef17bd53a94c
+```
+
+Теперь следует выполнить предлагаемую команду `microk8s join ...` на присоединяемом узле. Чтобы убедиться, что узел присоединён нужно выполнить следующую команду:
+
+```bash
+microk8s kubectl get nodes
+```
+
+Вывод должен быть похож на следующий:
+
+```bash
+NAME        STATUS   ROLES    AGE    VERSION
+rtx3090-1   Ready    <none>   40d    v1.20.13-35+d877e7a8ac536e
+rtx3090-2   Ready    <none>   124d   v1.20.13-35+d877e7a8ac536e
+```
+
+
+
+### 10.2. Удаление узла
+
+На узле, который нужно удалить, запустите команду
+
+```bash
+microk8s leave
+```
+
+Чтобы завершить удаление узла, необходимо в кластере вызвать команду
+
+```bash
+microk8s remove-node <node name>
+```
+
+где `<node name>` имя или IP-адрес узла.
+
+## 11. Очистка ПК
+
+Для того, чтобы откатить ПК к изначальному состоянию нужно произвести ряд манипуляций.
+
+### 11.1. Сохранение файлов из Default Storage
+
+Хранилище **Default Storage** расположен по адресу
+
+```bash
+/var/snap/microk8s/common/default-storage
+```
+
+В этом каталоге лежит несколько директорий. Например данные **Jypyter Notebook** находятся в каталоге
+
+```bash
+kubeflow-megaputer-megaputer-notebook-volume-pvc-d5bf70e5-73cc-4929-a090-3fbefecbec8e
+```
+
+- `kubeflow-megaputer` - пространство имён, в котором создан блокнот (указанный в  файле `params.env` при развёртывании **KubeFlow**).
+- `megaputer-notebook` - имя блокнота.
+- `volume-pvc-d5bf70e5-73cc-4929-a090-3fbefecbec8e` - название хранилища.
+
+Также в **Default Storage** могут находиться пользовательские каталоги, соответствующие созданным **Persistent Volume Claim**.
+
+Все нужные данные лучше перенести в другое удобное для хранения место, т.к. при удалении MicroK8S они также удаляться.
+
+### 11.2. Удаление текущей версии Kubernetes
+
+Сначала нужно остановить работу **MicroK8S** командой:
+
+```bash
+microk8s stop
+```
+
+После остановки работы MicroK8S можно удалить связанные с ним каталоги:
+
+```bash
+sudo snap remove microk8s --purge
+sudo rm -rf ~/.kube
+```
+
+В случае использования **kubeadm**:
+
+### 11.3. Удаление CUDA
+
+```bash
+sudo apt --purge remove "*cublas*" "cuda*" "nsight*"
+sudo rm -rf /usr/local/cuda*
+sudo rm /etc/apt/sources.list.d/cuda*
+```
+
+### 11.4. Удаление драйверов NVIDIA
+
+```
+sudo apt --purge remove nvidia*
+```
+
+### 11.5. Удаление ненужных репозиториев
+
+При необходимости удалить ранее добавленные репозитории:
+
+```bash
+sudo nano /etc/apt/sources.list
+sudo ls -la /etc/apt/sources.list.d/
+sudo rm -rf /etc/apt/sources.list.d/*
+```
+
+### 11.6. Очистка системы от удалённых пакетов:
+
+```bash
+sudo apt update
+sudo apt upgrade
+sudo apt autoremove
+sudo apt autoclean
+```
+
+### 11.7. Удалить Docker (опционально)
+
+Если на ПК ранее был установлен **Docker**, то во избежании конфликта с **MicroK8S** его лучше удалить с помощью следующих команд:
+
+```bash
+sudo apt --purge remove "*docker*"
+sudo rm -rf /var/lib/docker
+sudo rm -rf /var/run/docker.sock
+sudo rm -rf /etc/docker
+sudo rm -rf /usr/local/bin/docker-compose
+sudo rm -rf ~/.docker
+```
+
+## Приложение А. Управление контейнирами в crt
+
+Список контейнеров
+
+```bash
+microk8s.ctr images list | grep yurkoff
+```
+
+Удаление контейнера
+
+```bash
+microk8s.ctr images rm docker.io/yurkoff/torchserve-kfs@sha256:b96f45553aded7c5f0c5d887ead9cd5d239390d3a4b516f7939b00ef271176ef
+```
+
+Загрузка контейнера в crt
+
+```bash
+microk8s ctr image pull docker.io/yurkoff/torchserve-kfs:0.5.3-gpu
+microk8s ctr image pull docker.io/yurkoff/torchserve-cuda-11.3-kfs:0.5.3-gpu
+microk8s ctr image pull docker.io/yurkoff/torchserve-opencv-cuda-11.3-kfs:0.5.3-gpu
+microk8s ctr image pull docker.io/yurkoff/torchserve-kfs:0.7.1-gpu-llm
+```
+
+Запуск контейнера
+
+```bash
+microk8s ctr run --rm -t --net-host --mount type=bind,src=/home/teslak80/Efremov/torchserve/config/xlmbert,dst=/home/model-server/config,options=rbind:ro --mount type=bind,src=/home/teslak80/Efremov/torchserve/model-store,dst=/home/model-server/model-store,options=rbind:ro docker.io/yurkoff/torchserve:0.1-gpu torchserve
+```
+
+
+
+```bash
+microk8s ctr run --rm -t --net-host --mount type=bind,src=/mnt/nfs/kubeflow-megaputer-torchserve-claim-pvc-0fda373b-34a6-4a24-94c0-743693facc00/bert-multi-cased/config,dst=/home/model-server/config,options=rbind:ro --mount type=bind,src=/mnt/nfs/kubeflow-megaputer-torchserve-claim-pvc-0fda373b-34a6-4a24-94c0-743693facc00/bert-multi-cased/model-store,dst=/home/model-server/model-store,options=rbind:ro docker.io/yurkoff/torchserve-kfs:0.5.3-gpu bert
+```
+
