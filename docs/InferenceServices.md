@@ -15,6 +15,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: torchserve-claim
+  namespace: kubeflow-megaputer
 spec:
   storageClassName: nfs-client
   resources:
@@ -24,7 +25,7 @@ spec:
     - ReadWriteMany
 ```
 
-Здесь мы создаём **PersistentVolumeClaim** с именем **torchserve-claim**. В качестве класса хранилища (**storageClassName**) указывается **nfs-client**, в котором выделяются 50 ГБ пространства (storage: 50Gi) в режиме множественного доступа (**ReadWriteMany**).
+Здесь мы создаём **PersistentVolumeClaim** с именем **torchserve-claim** в пространстве имён **kubeflow-megaputer**. В качестве класса хранилища (**storageClassName**) указывается **nfs-client**, в котором выделяются 50 ГБ пространства (storage: 50Gi) в режиме множественного доступа (**ReadWriteMany**).
 
 В качестве типа хранилища может использоваться и **microk8s-hostpath**, создаваемый **MicroK8S** по-умолчанию, но использование **NFS**-хранилища более удобно, т.к. для пользователя это обычная сетевая папка.
 
@@ -90,6 +91,7 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: "nllb-200-1dot3b"
+  namespace: kubeflow-megaputer
 spec:
   predictor:
     pytorch:
